@@ -1,1 +1,111 @@
-<!DOCTYPE html><html><head><script>const PREFIX = "Balatro_Balatro_";const originalOpen = indexedDB.open;const originalDeleteDatabase = indexedDB.deleteDatabase;indexedDB.open = function(name, version) {const prefixedName = PREFIX + name;return version !== undefined?originalOpen.call(this, prefixedName, version):originalOpen.call(this, prefixedName);};indexedDB.deleteDatabase = function(name) {const prefixedName = PREFIX + name;return originalDeleteDatabase.call(this, prefixedName);};</script><script src="love.min.js"></script><title>Love.js</title><style>#canvas {position:absolute;top: 0;left: 0;width: 100vw;height: 100vh;}body {width: 100vw;height: 100vh;margin: 0px;}</style></head><body><canvas id="canvas"></canvas><script src="module.js"></script><script>(async()=>{const d=await getSource();Module={INITIAL_MEMORY:2**28,canvas:canvas,printErr:console.error,arguments:["game.love"]};Module.preRun = [function(){Module.addRunDependency("fp game.love");var ptr = Module.getMemory(d.length);Module['HEAPU8'].set(d, ptr);Module.FS_createDataFile('/', "game.love", d, true, true, true);Module.removeRunDependency("fp game.love")}];Love(Module)})()</script></body></html>
+<!DOCTYPE html>
+<html>
+<head>
+	<script>
+		const PREFIX = "Balatro_Balatro_";
+		const originalOpen = indexedDB.open;
+		const originalDeleteDatabase = indexedDB.deleteDatabase;
+		indexedDB.open = function(name, version) {
+			const prefixedName = PREFIX + name;
+			return version !== undefined
+				? originalOpen.call(this, prefixedName, version)
+				: originalOpen.call(this, prefixedName);
+		};
+		indexedDB.deleteDatabase = function(name) {
+			return originalDeleteDatabase.call(this, PREFIX + name);
+		};
+	</script>
+	<script src="love.min.js"></script>
+	<title>Love.js</title>
+	<style>
+		#canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; }
+		body { width: 100vw; height: 100vh; margin: 0; }
+	</style>
+</head>
+<body>
+	<canvas id="canvas"></canvas>
+	<script>
+		function openGameCache() {
+			return new Promise((resolve, reject) => {
+				const request = indexedDB.open("game_data_cache", 1);
+				request.onupgradeneeded = () => request.result.createObjectStore("files");
+				request.onsuccess = () => resolve(request.result);
+				request.onerror = () => reject(request.error);
+			});
+		}
+
+		async function readCachedGameData() {
+			let database;
+			try {
+				database = await openGameCache();
+				return await new Promise((resolve, reject) => {
+					const request = database.transaction("files", "readonly")
+						.objectStore("files").get("game.love");
+					request.onsuccess = () => resolve(request.result || null);
+					request.onerror = () => reject(request.error);
+				});
+			} catch (error) {
+				console.warn("Could not read cached game data:", error);
+				return null;
+			} finally {
+				if (database) database.close();
+			}
+		}
+
+		async function saveGameData(data) {
+			let database;
+			try {
+				database = await openGameCache();
+				await new Promise((resolve, reject) => {
+					const transaction = database.transaction("files", "readwrite");
+					transaction.objectStore("files").put(data, "game.love");
+					transaction.oncomplete = resolve;
+					transaction.onerror = () => reject(transaction.error);
+					transaction.onabort = () => reject(transaction.error);
+				});
+			} catch (error) {
+				console.warn("Could not save game data in the browser cache:", error);
+			} finally {
+				if (database) database.close();
+			}
+		}
+
+		(async () => {
+			let data = await readCachedGameData();
+			if (!data) {
+				const responses = await Promise.all(
+					Array.from({ length: 8 }, (_, index) =>
+						fetch(`module_${String(index + 1).padStart(2, "0")}.js`)
+					)
+				);
+				if (responses.some(response => !response.ok)) {
+					throw new Error("Could not load both module parts");
+				}
+
+				const parts = await Promise.all(responses.map(response => response.text()));
+				const moduleScript = document.createElement("script");
+				moduleScript.textContent = parts.join("");
+				document.head.appendChild(moduleScript);
+
+				data = await getSource();
+				void saveGameData(data);
+			}
+
+			Module = {
+				INITIAL_MEMORY: 2 ** 28,
+				canvas: document.getElementById("canvas"),
+				printErr: console.error,
+				arguments: ["game.love"]
+			};
+			Module.preRun = [function() {
+				Module.addRunDependency("fp game.love");
+				const ptr = Module.getMemory(data.length);
+				Module.HEAPU8.set(data, ptr);
+				Module.FS_createDataFile("/", "game.love", data, true, true, true);
+				Module.removeRunDependency("fp game.love");
+			}];
+			Love(Module);
+		})().catch(console.error);
+	</script>
+</body>
+</html>
