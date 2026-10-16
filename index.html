@@ -18,12 +18,141 @@
 	<script src="love.min.js"></script>
 	<title>Love.js</title>
 	<style>
-		#canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; }
-		body { width: 100vw; height: 100vh; margin: 0; }
+		* { box-sizing: border-box; }
+		html, body { width: 100%; height: 100%; margin: 0; }
+		body { overflow: hidden; background: #10191d; }
+		#canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+		.loader-screen {
+			position: fixed;
+			inset: 0;
+			z-index: 2;
+			display: grid;
+			place-items: center;
+			overflow: hidden;
+			background:
+				radial-gradient(ellipse at 50% 42%, rgba(0, 111, 168, .42), transparent 48%),
+				radial-gradient(ellipse at 12% 16%, rgba(198, 45, 52, .38), transparent 38%),
+				linear-gradient(140deg, #111b20 8%, #342126 52%, #102d35 100%);
+			opacity: 1;
+			transition: opacity 300ms ease;
+		}
+		.loader-screen::before {
+			position: absolute;
+			inset: 0;
+			background: repeating-linear-gradient(to bottom, transparent 0 3px, rgba(0, 0, 0, .22) 4px);
+			content: "";
+			pointer-events: none;
+		}
+		.loader-screen[hidden] { display: none; }
+		.loader-screen.is-ready { opacity: 0; pointer-events: none; }
+		.loader-panel {
+			position: relative;
+			width: min(540px, calc(100vw - 32px));
+			padding: 24px 26px 20px;
+			border: 4px solid #102b31;
+			border-radius: 8px;
+			background: linear-gradient(180deg, #42675f 0%, #274c49 16%, #263d3e 100%);
+			box-shadow: 0 8px 0 #071317, inset 0 3px 0 rgba(206, 245, 220, .34), inset 0 -4px 0 rgba(4, 17, 21, .52);
+			color: #f5f1e8;
+			font-family: "Courier New", monospace;
+			text-align: center;
+			image-rendering: pixelated;
+		}
+		.loader-brand {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 14px;
+			color: #f9f5eb;
+			font-size: clamp(25px, 7vw, 38px);
+			font-weight: 900;
+			line-height: 1;
+			text-shadow: 2px 3px 0 #142d35, 4px 5px 0 #09191e;
+		}
+		.loader-suit { color: #36b8f5; font-size: .78em; text-shadow: 2px 3px 0 #12394a; }
+		.loader-version { margin-top: 10px; color: #c3d1bc; font-size: 11px; font-weight: 700; }
+		.loading-status {
+			min-height: 22px;
+			margin: 24px 0 10px;
+			font-size: 14px;
+			font-weight: 700;
+			text-shadow: 1px 2px 0 #122529;
+		}
+		.progress-track {
+			position: relative;
+			height: 30px;
+			padding: 4px;
+			border: 3px solid #10272c;
+			border-radius: 5px;
+			background: #152b30;
+			box-shadow: inset 0 2px 4px rgba(0, 0, 0, .6), 0 2px 0 rgba(116, 161, 141, .5);
+			text-align: left;
+		}
+		.progress-fill {
+			position: relative;
+			height: 100%;
+			width: 0%;
+			overflow: hidden;
+			border-radius: 1px;
+			background: linear-gradient(180deg, #58d6ff 0%, #168ce8 55%, #0870ca 100%);
+			box-shadow: inset 0 2px 0 rgba(255, 255, 255, .42), 0 0 12px rgba(34, 174, 255, .42);
+			transition: width 180ms ease-out;
+		}
+		.progress-fill::after {
+			position: absolute;
+			inset: 0;
+			background: repeating-linear-gradient(90deg, transparent 0 12px, rgba(255, 255, 255, .14) 12px 14px);
+			content: "";
+		}
+		.loader-screen.is-indeterminate .progress-fill { width: 38%; animation: loading-sweep 1.2s ease-in-out infinite alternate; }
+		.loader-footer {
+			display: flex;
+			justify-content: space-between;
+			margin-top: 10px;
+			color: #c1d0c3;
+			font-size: 11px;
+			font-weight: 700;
+		}
+		.loading-error { margin: 14px 0 0; color: #ffc7b9; font-size: 12px; overflow-wrap: anywhere; }
+		.loader-retry {
+			margin-top: 14px;
+			padding: 9px 18px;
+			border: 2px solid #163c47;
+			border-radius: 4px;
+			background: linear-gradient(#65d8ff, #168be1);
+			box-shadow: 0 3px 0 #0c2930;
+			color: #fff;
+			font: 700 13px "Courier New", monospace;
+			text-shadow: 1px 2px 0 #145173;
+			cursor: pointer;
+		}
+		.loader-retry[hidden], .loading-error[hidden] { display: none; }
+		.loader-panel.has-error .progress-fill { background: linear-gradient(#ff8e70, #d6404a); }
+		@keyframes loading-sweep { from { transform: translateX(0); } to { transform: translateX(145%); } }
+		@media (max-width: 480px) {
+			.loader-panel { padding: 21px 18px 17px; }
+			.loading-status { margin-top: 20px; font-size: 12px; }
+		}
+		@media (prefers-reduced-motion: reduce) {
+			*, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+		}
 	</style>
 </head>
 <body>
 	<canvas id="canvas"></canvas>
+	<div class="loader-screen is-indeterminate" id="loadingScreen" role="status" aria-live="polite">
+		<div class="loader-panel" id="loadingPanel">
+			<div class="loader-brand"><span class="loader-suit" aria-hidden="true">&#9824;</span><span>BALATRO</span><span class="loader-suit" aria-hidden="true">&#9830;</span></div>
+			<div class="loader-version">1.0.1o-FULL</div>
+			<p class="loading-status" id="loadingStatus">CHECKING SAVE DATA</p>
+			<div class="progress-track" id="loadingTrack" role="progressbar" aria-label="Loading game" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+				<div class="progress-fill" id="loadingFill"></div>
+			</div>
+			<div class="loader-footer"><span>PLEASE WAIT</span><span id="loadingPercent">0%</span></div>
+			<p class="loading-error" id="loadingError" hidden></p>
+			<button class="loader-retry" id="loadingRetry" type="button" hidden>RETRY</button>
+		</div>
+	</div>
 	<script>
 		function openGameCache() {
 			return new Promise((resolve, reject) => {
@@ -70,27 +199,72 @@
 			}
 		}
 
+		function updateLoading(message, percent, indeterminate = false) {
+			const screen = document.getElementById("loadingScreen");
+			const value = Math.max(0, Math.min(100, Math.round(percent)));
+			document.getElementById("loadingStatus").textContent = message;
+			document.getElementById("loadingPercent").textContent = `${value}%`;
+			document.getElementById("loadingTrack").setAttribute("aria-valuenow", String(value));
+			document.getElementById("loadingFill").style.width = `${value}%`;
+			screen.classList.toggle("is-indeterminate", indeterminate);
+		}
+
+		function nextPaint() {
+			return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+		}
+
+		async function readResponseText(response, onBytesRead) {
+			if (!response.body || !response.body.getReader) return response.text();
+			const reader = response.body.getReader();
+			const decoder = new TextDecoder();
+			let source = "";
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				source += decoder.decode(value, { stream: true });
+				onBytesRead(value.byteLength);
+			}
+			return source + decoder.decode();
+		}
+
 		(async () => {
+			updateLoading("CHECKING SAVE DATA", 2, true);
 			let data = await readCachedGameData();
 			if (!data) {
-				const responses = await Promise.all(
-					Array.from({ length: 8 }, (_, index) =>
-						fetch(`module_${String(index + 1).padStart(2, "0")}.js`)
-					)
-				);
+				updateLoading("FINDING GAME FILES", 4, true);
+				const responses = await Promise.all(Array.from({ length: 8 }, (_, index) =>
+					fetch(`module_${String(index + 1).padStart(2, "0")}.js`)
+				));
 				if (responses.some(response => !response.ok)) {
-					throw new Error("Could not load both module parts");
+					throw new Error("Could not load all game files");
 				}
 
-				const parts = await Promise.all(responses.map(response => response.text()));
+				const lengths = responses.map(response => Number(response.headers.get("content-length")) || 0);
+				const totalBytes = lengths.every(length => length > 0)
+					? lengths.reduce((total, length) => total + length, 0)
+					: 0;
+				let loadedBytes = 0;
+				updateLoading("DOWNLOADING GAME FILES", 5, totalBytes === 0);
+				const parts = await Promise.all(responses.map(response => readResponseText(response, bytes => {
+					loadedBytes += bytes;
+					const progress = totalBytes ? 5 + loadedBytes / totalBytes * 78 : 5;
+					updateLoading("DOWNLOADING GAME FILES", progress, totalBytes === 0);
+				})));
+
+				updateLoading("ASSEMBLING GAME FILES", 84);
+				await nextPaint();
 				const moduleScript = document.createElement("script");
 				moduleScript.textContent = parts.join("");
 				document.head.appendChild(moduleScript);
 
+				updateLoading("PREPARING GAME ARCHIVE", 89, true);
 				data = await getSource();
 				void saveGameData(data);
+			} else {
+				updateLoading("RESTORING SAVED GAME", 89, true);
 			}
 
+			updateLoading("STARTING GAME", 95, true);
 			Module = {
 				INITIAL_MEMORY: 2 ** 28,
 				canvas: document.getElementById("canvas"),
@@ -104,8 +278,21 @@
 				Module.FS_createDataFile("/", "game.love", data, true, true, true);
 				Module.removeRunDependency("fp game.love");
 			}];
-			Love(Module);
-		})().catch(console.error);
+			await Love(Module);
+			await nextPaint();
+			updateLoading("READY", 100);
+			const screen = document.getElementById("loadingScreen");
+			screen.classList.add("is-ready");
+			setTimeout(() => { screen.hidden = true; }, 320);
+		})().catch(error => {
+			console.error(error);
+			updateLoading("LOAD FAILED", 100);
+			document.getElementById("loadingPanel").classList.add("has-error");
+			document.getElementById("loadingError").textContent = error.message || "The game could not be loaded.";
+			document.getElementById("loadingError").hidden = false;
+			document.getElementById("loadingRetry").hidden = false;
+		});
+		document.getElementById("loadingRetry").addEventListener("click", () => location.reload());
 	</script>
 </body>
 </html>
