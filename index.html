@@ -3,6 +3,7 @@
 <head>
 	<script>
 		const PREFIX = "Balatro_Balatro_";
+				const GAME_CACHE_KEY = "game.love.overlay-v1";
 		const originalOpen = indexedDB.open;
 		const originalDeleteDatabase = indexedDB.deleteDatabase;
 		indexedDB.open = function(name, version) {
@@ -14,6 +15,52 @@
 		indexedDB.deleteDatabase = function(name) {
 			return originalDeleteDatabase.call(this, PREFIX + name);
 		};
+		["keydown", "keypress", "keyup"].forEach(type => {
+			window.addEventListener(type, event => {
+				const adminOverlay = document.getElementById("adminOverlay");
+				if (!adminOverlay || adminOverlay.hidden ||
+					!(event.target instanceof HTMLInputElement) || !adminOverlay.contains(event.target)) return;
+				if (type === "keydown" && event.target.id === "adminJokerSearch") {
+					const list = document.getElementById("adminJokerSuggestions");
+					const options = list ? [...list.querySelectorAll("[role=option]")] : [];
+					const selectedIndex = options.findIndex(option => option.getAttribute("aria-selected") === "true");
+					if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+						if (!list.hidden && options.length) {
+							event.preventDefault();
+							const direction = event.key === "ArrowDown" ? 1 : -1;
+							const nextIndex = selectedIndex < 0
+								? (direction > 0 ? 0 : options.length - 1)
+								: (selectedIndex + direction + options.length) % options.length;
+							options.forEach((option, index) => option.setAttribute("aria-selected", String(index === nextIndex)));
+							options[nextIndex].scrollIntoView({ block: "nearest" });
+						}
+					} else if (event.key === "Enter" && !list.hidden && options.length) {
+						event.preventDefault();
+						const option = options[selectedIndex < 0 ? 0 : selectedIndex];
+						event.target.value = option.dataset.value;
+						list.hidden = true;
+						event.target.setAttribute("aria-expanded", "false");
+						document.getElementById("adminStatus").textContent = `Selected ${option.textContent}`;
+					} else if (event.key === "Escape" && !list.hidden) {
+						event.preventDefault();
+						list.hidden = true;
+						event.target.setAttribute("aria-expanded", "false");
+					}
+				}
+				event.stopImmediatePropagation();
+			}, true);
+		});
+		["pointerdown", "mousedown"].forEach(type => {
+			window.addEventListener(type, event => {
+				const adminOverlay = document.getElementById("adminOverlay");
+				if (!adminOverlay || adminOverlay.hidden || !(event.target instanceof HTMLElement) ||
+					!adminOverlay.contains(event.target)) return;
+				event.stopImmediatePropagation();
+				if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+					setTimeout(() => event.target.focus({ preventScroll: true }), 0);
+				}
+			}, true);
+		});
 	</script>
 	<script src="love.min.js"></script>
 	<title>Love.js</title>
@@ -194,6 +241,64 @@
 		@media (prefers-reduced-motion: reduce) {
 			*, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 		}
+		#adminToggle, #adminOverlay { font-family: "Press Start 2P", "Courier New", monospace; }
+		#adminToggle {
+			position: fixed; top: 14px; right: 14px; z-index: 4; display: none;
+			padding: 10px 12px; border: 2px solid #10272c; border-radius: 2px;
+			background: #168be1; box-shadow: 0 4px 0 #0b1c20; color: #fff;
+			font-size: 10px; cursor: pointer;
+		}
+		body.game-ready #adminToggle { display: block; }
+		#adminOverlay[hidden] { display: none; }
+		#adminOverlay {
+			position: fixed; top: 58px; right: 14px; z-index: 5;
+			width: min(360px, calc(100vw - 28px)); max-height: calc(100vh - 72px); overflow: auto;
+			padding: 14px; border: 2px solid #608086; border-radius: 3px;
+			background: rgba(10, 19, 22, .96); box-shadow: 0 8px 22px rgba(0, 0, 0, .48);
+			color: #f4f1e7; image-rendering: pixelated;
+		}
+		.admin-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+		.admin-title { color: #f1c85a; font-size: 11px; }
+		.admin-close, .admin-action {
+			min-height: 34px; border: 2px solid #172c32; border-radius: 2px;
+			background: #d94e43; box-shadow: 0 3px 0 #071114; color: #fff;
+			font: 9px "Press Start 2P", "Courier New", monospace; cursor: pointer;
+		}
+		.admin-close { width: 34px; font-size: 12px; }
+		.admin-section { margin-top: 12px; padding-top: 10px; border-top: 1px solid #31494e; }
+		.admin-label { display: block; margin-bottom: 7px; color: #b9d4d0; font-size: 8px; }
+		.admin-speed-row, .admin-field-row { display: flex; align-items: center; gap: 8px; }
+		#adminSpeed { flex: 1; min-width: 0; accent-color: #42a6ed; }
+		#adminSpeedValue { width: 34px; color: #f1c85a; font-size: 9px; text-align: right; }
+		.admin-input {
+			min-width: 0; height: 34px; padding: 5px 7px; border: 1px solid #547278; border-radius: 2px;
+			background: #14272c; color: #fff; font: 9px "Press Start 2P", "Courier New", monospace;
+		}
+		.admin-input:focus { outline: 2px solid #f1c85a; outline-offset: 1px; }
+		#adminMoney { width: 92px; }
+		#adminJokerSearch { flex: 1; width: 100%; }
+		#adminJokerQuantity { width: 66px; }
+		.admin-joker-search-wrap { position: relative; flex: 1; min-width: 0; }
+		#adminJokerSuggestions {
+			position: absolute; top: calc(100% + 4px); left: 0; z-index: 1;
+			width: 100%; max-height: 180px; overflow-y: auto; margin: 0; padding: 4px;
+			border: 1px solid #608086; background: #0a1316; list-style: none;
+		}
+		#adminJokerSuggestions[hidden] { display: none; }
+		#adminJokerSuggestions [role="option"] {
+			display: block; width: 100%; padding: 8px; border: 0;
+			background: transparent; color: #f4f1e7; text-align: left;
+			font: 8px "Press Start 2P", "Courier New", monospace; cursor: pointer;
+		}
+		#adminJokerSuggestions [role="option"]:hover,
+		#adminJokerSuggestions [role="option"][aria-selected="true"] { background: #24515b; }
+		.admin-action { flex: 1; padding: 7px 5px; line-height: 1.5; }
+		.admin-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+		.admin-status { min-height: 24px; margin: 10px 0 0; color: #c5d6ce; font: 8px/1.6 "Press Start 2P", "Courier New", monospace; overflow-wrap: anywhere; }
+		@media (max-width: 480px) {
+			#adminToggle { top: 8px; right: 8px; }
+			#adminOverlay { top: 52px; right: 8px; width: calc(100vw - 16px); max-height: calc(100vh - 60px); }
+		}
 	</style>
 </head>
 <body>
@@ -217,6 +322,54 @@
 			</div>
 		</div>
 	</div>
+	<button id="adminToggle" type="button" aria-expanded="false" aria-controls="adminOverlay">TOOLS</button>
+	<aside id="adminOverlay" role="dialog" aria-label="Game tools" hidden>
+		<div class="admin-head">
+			<span class="admin-title">GAME TOOLS</span>
+			<button class="admin-close" id="adminClose" type="button" aria-label="Close tools">X</button>
+		</div>
+		<section class="admin-section">
+			<label class="admin-label" for="adminSpeed">Game speed</label>
+			<div class="admin-speed-row">
+				<input id="adminSpeed" type="range" min="1" max="100" step="1" value="1">
+				<output id="adminSpeedValue" for="adminSpeed">1</output>
+			</div>
+		</section>
+		<section class="admin-section">
+			<label class="admin-label" for="adminMoney">Add money</label>
+			<div class="admin-field-row">
+				<input class="admin-input" id="adminMoney" type="number" min="1" max="1000000" step="1" value="10">
+				<button class="admin-action" id="adminAddMoney" type="button">ADD $</button>
+			</div>
+		</section>
+		<section class="admin-section">
+			<label class="admin-label" for="adminJokerSearch">Add a Joker</label>
+			<div class="admin-field-row">
+				<div class="admin-joker-search-wrap">
+					<input class="admin-input" id="adminJokerSearch" type="search" maxlength="40" placeholder="Name or key" role="combobox" aria-autocomplete="list" aria-controls="adminJokerSuggestions" aria-expanded="false" autocomplete="off">
+					<ul id="adminJokerSuggestions" role="listbox" aria-label="Joker suggestions" hidden></ul>
+				</div>
+				<input class="admin-input" id="adminJokerQuantity" type="number" min="1" max="100" step="1" value="1" aria-label="Joker quantity">
+			</div>
+			<button class="admin-action" id="adminAddJoker" type="button" style="width:100%;margin-top:8px">ADD MATCH</button>
+		</section>
+		<section class="admin-section admin-actions" aria-label="Run actions">
+			<button class="admin-action" data-admin-action="round" type="button">+1 ROUND</button>
+			<button class="admin-action" data-admin-action="ante" type="button">+1 ANTE</button>
+			<button class="admin-action" data-admin-action="hand" type="button">+1 HAND</button>
+			<button class="admin-action" data-admin-action="discard" type="button">+1 DISCARD</button>
+			<button class="admin-action" data-admin-action="boss" type="button">BOSS REROLL</button>
+			<button class="admin-action" data-admin-action="chips" type="button">+10 CHIPS</button>
+			<button class="admin-action" data-admin-action="mult" type="button">+10 MULT</button>
+			<button class="admin-action" data-admin-action="xchips" type="button">X2 CHIPS</button>
+			<button class="admin-action" data-admin-action="xmult" type="button">X10 MULT</button>
+			<button class="admin-action" data-admin-action="reset" type="button">RESET SCORE</button>
+			<button class="admin-action" data-admin-action="background" type="button">BACKGROUND</button>
+			<button class="admin-action" data-admin-action="win" type="button">WIN RUN</button>
+			<button class="admin-action" data-admin-action="lose" type="button">END RUN</button>
+		</section>
+		<p class="admin-status" id="adminStatus" role="status" aria-live="polite">F2 toggles; Tab opens tools</p>
+	</aside>
 	<script>
 		function openGameCache() {
 			return new Promise((resolve, reject) => {
@@ -233,7 +386,7 @@
 				database = await openGameCache();
 				return await new Promise((resolve, reject) => {
 					const request = database.transaction("files", "readonly")
-						.objectStore("files").get("game.love");
+						.objectStore("files").get(GAME_CACHE_KEY);
 					request.onsuccess = () => resolve(request.result || null);
 					request.onerror = () => reject(request.error);
 				});
@@ -251,7 +404,9 @@
 				database = await openGameCache();
 				await new Promise((resolve, reject) => {
 					const transaction = database.transaction("files", "readwrite");
-					transaction.objectStore("files").put(data, "game.love");
+					const store = transaction.objectStore("files");
+					store.put(data, GAME_CACHE_KEY);
+					store.delete("game.love");
 					transaction.oncomplete = resolve;
 					transaction.onerror = () => reject(transaction.error);
 					transaction.onabort = () => reject(transaction.error);
@@ -263,7 +418,147 @@
 			}
 		}
 
-		function updateLoading(message, percent, indeterminate = false) {
+					const adminToggle = document.getElementById("adminToggle");
+					const adminOverlay = document.getElementById("adminOverlay");
+					const adminStatus = document.getElementById("adminStatus");
+
+					function setAdminOverlayOpen(open) {
+						adminOverlay.hidden = !open;
+						adminToggle.setAttribute("aria-expanded", String(open));
+						if (open) setTimeout(() => document.getElementById("adminJokerSearch").focus(), 0);
+					}
+
+					adminToggle.addEventListener("click", () => setAdminOverlayOpen(adminOverlay.hidden));
+					document.getElementById("adminClose").addEventListener("click", () => {
+						setAdminOverlayOpen(false);
+						adminToggle.focus();
+					});
+					window.addEventListener("keydown", event => {
+						if (event.key === "F2" && document.body.classList.contains("game-ready")) {
+							event.preventDefault();
+							event.stopImmediatePropagation();
+							setAdminOverlayOpen(adminOverlay.hidden);
+						} else if (event.key === "Tab" && document.body.classList.contains("game-ready")) {
+							event.stopImmediatePropagation();
+							if (adminOverlay.hidden) {
+								event.preventDefault();
+								setAdminOverlayOpen(true);
+							}
+						}
+					}, true);
+
+					function sendAdminCommand(action, ...values) {
+						if (typeof Module === "undefined" || !Module.FS_createDataFile) {
+							adminStatus.textContent = "Game is not ready";
+							return false;
+						}
+						const fields = [action, ...values.map(value => String(value).replace(/[\t\r\n]/g, " "))];
+						const command = new TextEncoder().encode(fields.join("\t"));
+						const path = "/home/web_user/love/admin_overlay_command";
+						try {
+							if (Module.FS_createPath) Module.FS_createPath("/", "home/web_user/love", true, true);
+							try { Module.FS_unlink(path); } catch (_) {}
+							Module.FS_createDataFile("/home/web_user/love", "admin_overlay_command", command, true, true, true);
+							adminStatus.textContent = "Command sent";
+							return true;
+						} catch (error) {
+							console.error("Could not send game command:", error);
+							adminStatus.textContent = "Could not send command";
+							return false;
+						}
+					}
+
+					const adminSpeed = document.getElementById("adminSpeed");
+					const adminSpeedValue = document.getElementById("adminSpeedValue");
+					const adminJokerSearch = document.getElementById("adminJokerSearch");
+					const adminJokerSuggestions = document.getElementById("adminJokerSuggestions");
+					const jokerNames = [
+						"8 Ball", "Abstract Joker", "Acrobat", "Ancient Joker", "Arrowhead", "Astronomer", "Banner", "Baron",
+						"Baseball Card", "Blackboard", "Bloodstone", "Blue Joker", "Blueprint", "Bootstraps", "Brainstorm", "Bull",
+						"Burglar", "Burnt Joker", "Business Card", "Canio", "Campfire", "Card Sharp", "Cartomancer", "Castle",
+						"Cavendish", "Ceremonial Dagger", "Certificate", "Chaos the Clown", "Chicot", "Clever Joker", "Cloud 9",
+						"Constellation", "Crafty Joker", "Crazy Joker", "Credit Card", "Delayed Gratification", "Devious Joker",
+						"Diet Cola", "DNA", "Drunkard", "Driver's License", "Droll Joker", "Dusk", "The Duo", "Egg", "Erosion",
+						"Even Steven", "Faceless Joker", "The Family", "Fibonacci", "Flash Card", "Flower Pot", "Fortune Teller",
+						"Four Fingers", "Gift Card", "Glass Joker", "Gluttonous Joker", "Golden Joker", "Greedy Joker", "Green Joker",
+						"Gros Michel", "Hack", "Half Joker", "Hallucination", "Hanging Chad", "Hiker", "Hit the Road", "Hologram",
+						"Ice Cream", "The Idol", "Invisible Joker", "Joker", "Jolly Joker", "Juggler", "Loyalty Card", "Luchador",
+						"Lucky Cat", "Lusty Joker", "Mad Joker", "Madness", "Mail-In Rebate", "Marble Joker", "Matador", "Merry Andy",
+						"Midas Mask", "Mime", "Misprint", "Mr. Bones", "Mystic Summit", "Obelisk", "Odd Todd", "Onyx Agate",
+						"Oops! All 6s", "The Order", "Pareidolia", "Perkeo", "Photograph", "Popcorn", "Raised Fist", "Ramen",
+						"Red Card", "Reserved Parking", "Ride the Bus", "Riff-Raff", "Showman", "Rocket", "Rough Gem", "Runner",
+						"Satellite", "Scary Face", "Scholar", "Séance", "Seeing Double", "Seltzer", "Shoot the Moon", "Shortcut",
+						"Sixth Sense", "Sly Joker", "Smeared Joker", "Smiley Face", "Sock and Buskin", "Space Joker", "Splash",
+						"Square Joker", "Steel Joker", "Joker Stencil", "Stone Joker", "Stuntman", "Supernova", "Superposition",
+						"Swashbuckler", "Throwback", "Golden Ticket", "To the Moon", "To Do List", "Trading Card", "The Tribe",
+						"Triboulet", "The Trio", "Troubadour", "Spare Trousers", "Turtle Bean", "Vagabond", "Vampire",
+						"Walkie Talkie", "Wee Joker", "Wily Joker", "Wrathful Joker", "Yorick", "Zany Joker"
+					];
+					function normalizeJokerSearch(value) {
+						return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+					}
+					function renderJokerSuggestions() {
+						const query = normalizeJokerSearch(adminJokerSearch.value.trim());
+						adminJokerSuggestions.replaceChildren();
+						if (!query) {
+							adminJokerSuggestions.hidden = true;
+							adminJokerSearch.setAttribute("aria-expanded", "false");
+							return;
+						}
+						const matches = jokerNames
+							.filter(name => normalizeJokerSearch(name).includes(query))
+							.sort((a, b) => Number(!normalizeJokerSearch(a).startsWith(query)) - Number(!normalizeJokerSearch(b).startsWith(query)) || a.localeCompare(b))
+							.slice(0, 8);
+						for (const name of matches) {
+							const option = document.createElement("button");
+							option.type = "button";
+							option.setAttribute("role", "option");
+							option.setAttribute("aria-selected", "false");
+							option.dataset.value = name;
+							option.textContent = name;
+							adminJokerSuggestions.append(option);
+						}
+						adminJokerSuggestions.hidden = matches.length === 0;
+						adminJokerSearch.setAttribute("aria-expanded", String(matches.length > 0));
+					}
+					adminJokerSearch.addEventListener("input", renderJokerSuggestions);
+					adminJokerSearch.addEventListener("focus", renderJokerSuggestions);
+					adminJokerSuggestions.addEventListener("click", event => {
+						const option = event.target.closest("[role=option]");
+						if (!option) return;
+						adminJokerSearch.value = option.dataset.value;
+						adminJokerSuggestions.hidden = true;
+						adminJokerSearch.setAttribute("aria-expanded", "false");
+						adminStatus.textContent = `Selected ${option.textContent}`;
+						adminJokerSearch.focus();
+					});
+					adminJokerSearch.addEventListener("blur", () => setTimeout(() => {
+						adminJokerSuggestions.hidden = true;
+						adminJokerSearch.setAttribute("aria-expanded", "false");
+					}, 0));
+					adminSpeed.addEventListener("input", () => {
+						adminSpeedValue.value = adminSpeed.value;
+						adminSpeedValue.textContent = adminSpeed.value;
+						sendAdminCommand("speed", adminSpeed.value);
+					});
+					document.getElementById("adminAddMoney").addEventListener("click", () => {
+						const amount = Math.max(1, Math.min(1000000, Math.floor(Number(document.getElementById("adminMoney").value) || 10)));
+						sendAdminCommand("money", amount);
+					});
+					document.getElementById("adminAddJoker").addEventListener("click", () => {
+						const search = document.getElementById("adminJokerSearch").value.trim();
+						const quantity = Math.max(1, Math.min(100, Math.floor(Number(document.getElementById("adminJokerQuantity").value) || 1)));
+						if (!search) {
+							adminStatus.textContent = "Enter a Joker name or key";
+							return;
+						}
+						sendAdminCommand("add_joker", search, quantity);
+					});
+					document.querySelectorAll("[data-admin-action]").forEach(button => {
+						button.addEventListener("click", () => sendAdminCommand(button.dataset.adminAction));
+					});
+
+					function updateLoading(message, percent, indeterminate = false) {
 			const screen = document.getElementById("loadingScreen");
 			const value = Math.max(0, Math.min(100, Math.round(percent)));
 			document.getElementById("loadingStatus").textContent = message;
@@ -333,6 +628,12 @@
 				INITIAL_MEMORY: 2 ** 28,
 				canvas: document.getElementById("canvas"),
 				printErr: console.error,
+				print: message => {
+					const text = String(message);
+					const prefix = "__BALATRO_ADMIN__:";
+					if (text.startsWith(prefix)) adminStatus.textContent = text.slice(prefix.length);
+					else console.log(message);
+				},
 				arguments: ["game.love"]
 			};
 			Module.preRun = [function() {
@@ -347,7 +648,10 @@
 			updateLoading("READY", 100);
 			const screen = document.getElementById("loadingScreen");
 			screen.classList.add("is-ready");
-			setTimeout(() => { screen.hidden = true; }, 320);
+			setTimeout(() => {
+				screen.hidden = true;
+				document.body.classList.add("game-ready");
+			}, 320);
 		})().catch(error => {
 			console.error(error);
 			updateLoading("LOAD FAILED", 100);
