@@ -3,7 +3,7 @@
 <head>
 	<script>
 		const PREFIX = "Balatro_Balatro_";
-				const GAME_CACHE_KEY = "game.love.overlay-v3";
+				const GAME_CACHE_KEY = "game.love.overlay-v4";
 		const originalOpen = indexedDB.open;
 		const originalDeleteDatabase = indexedDB.deleteDatabase;
 		indexedDB.open = function(name, version) {
@@ -291,6 +291,8 @@
 		.admin-section[hidden], .admin-action[hidden] { display: none; }
 		.admin-section-title { margin: 0 0 10px; color: #f1c85a; font-size: 8px; }
 		.admin-label { display: block; margin-bottom: 7px; color: #b9d4d0; font-size: 8px; }
+		.admin-fast-select { display: flex; align-items: center; gap: 8px; color: #f5f1e8; font-size: 8px; line-height: 1.7; cursor: pointer; }
+		.admin-fast-select input { width: 16px; height: 16px; margin: 0; accent-color: #42a6ed; }
 		.admin-speed-row, .admin-field-row { display: flex; align-items: center; gap: 8px; }
 		.admin-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 12px; }
 		.admin-tab { min-height: 36px; border: 1px solid #547278; border-radius: 2px; background: #14272c; color: #c5d6ce; font: 8px "Press Start 2P", "Courier New", monospace; cursor: pointer; }
@@ -385,6 +387,11 @@
 			<button class="admin-tab" id="adminCardsTab" type="button" role="tab" aria-selected="false" aria-controls="adminCardsPanel" data-admin-tab="cards" tabindex="-1">PLAYING CARDS</button>
 		</div>
 		<div class="admin-tab-panel" id="adminToolsPanel" role="tabpanel" aria-labelledby="adminToolsTab" data-admin-tab-panel="tools">
+		<section class="admin-section" data-admin-section="Handy fast hand selection drag sweep">
+			<label class="admin-label" for="adminFastHandSelect">Fast hand selection</label>
+			<label class="admin-fast-select"><input id="adminFastHandSelect" type="checkbox"> Hold and sweep across cards to select</label>
+			<p class="admin-card-help">With this on, hold the left mouse button on a hand card and sweep across others. It only selects cards; it won't deselect them.</p>
+		</section>
 		<section class="admin-section" data-admin-section="Game speed">
 			<label class="admin-label" for="adminSpeed">Game speed</label>
 			<div class="admin-speed-row">
@@ -564,6 +571,7 @@
 		<section class="admin-keybinds" aria-labelledby="adminKeybindTitle">
 			<h2 class="admin-section-title" id="adminKeybindTitle">KEYBINDS — ALWAYS VISIBLE</h2>
 			<dl>
+				<dt>Hold + sweep</dt><dd>With Fast hand selection enabled, hold left mouse and sweep across hand cards to select them.</dd>
 				<dt>Q</dt><dd>On a hovered card: cycle Foil → Holographic → Polychrome → Negative → none.</dd>
 				<dt>F2</dt><dd>Open or close this toolkit.</dd>
 				<dt>Tab</dt><dd>Open the game's developer tools.</dd>
@@ -794,6 +802,9 @@
 					document.getElementById("adminSpeedReset").addEventListener("click", () => {
 						adminSpeed.value = "1";
 						adminSpeed.dispatchEvent(new Event("input", { bubbles: true }));
+					});
+					document.getElementById("adminFastHandSelect").addEventListener("change", event => {
+						sendAdminCommand("fast_hand_select", event.target.checked ? 1 : 0);
 					});
 					document.getElementById("adminAddMoney").addEventListener("click", () => {
 						const moneyInput = document.getElementById("adminMoney");
